@@ -1,7 +1,7 @@
 # auth_service.py
+from datetime import datetime, timedelta, timezone
 from flask import Flask, request, jsonify
 import jwt
-import datetime
 import sqlite3
 from flask_bcrypt import Bcrypt
 
@@ -78,6 +78,7 @@ def register():
         return jsonify({"message": "Erreur lors de la création du compte."}), 500
 
 @auth_app.route('/auth/login', methods=['POST'])
+@auth_app.route('/auth/login', methods=['POST'])
 def login():
     """API pour la connexion : vérifie et génère un JWT."""
     data = request.get_json()
@@ -89,24 +90,18 @@ def login():
     if user_record and check_password(user_record['password_hash'], password):
         # Génération du JWT (Valable 1 heure)
         payload = {
-            'user': user_record['username'],
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1), 
-            'iat': datetime.datetime.utcnow() 
+            'user': username,
+            'exp': datetime.now(timezone.utc) + timedelta(hours=1),
+            'iat': datetime.now(timezone.utc)
         }
         
-        token = jwt.encode({
-        'user': username,
-        'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1),
-        'iat': datetime.datetime.utcnow()
-    }, auth_app.config['SECRET_KEY'], algorithm='HS256')
-        
+        token = jwt.encode(payload, auth_app.config['SECRET_KEY'], algorithm='HS256')
         return jsonify({
             'message': 'Connexion réussie',
             'token': token
         }), 200
     else:
         return jsonify({'message': "Nom d'utilisateur ou mot de passe incorrect."}, 401)
-
 
 @auth_app.route('/auth/validate', methods=['POST'])
 def validate_token():
