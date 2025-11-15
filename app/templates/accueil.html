@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Accueil</title>
+</head>
+<body>
+    <h1>Bonjour M. {{ user }} !</h1>
+    <h2>Liste des articles et panier :</h2>
+
+    <!-- Le formulaire entier sera soumis à la route /submit_order -->
+    <form method="POST" action="/submit_order/{{ user }}">
+            {% if token %}
+            <input type="hidden" name="user_token" value="{{ token }}">
+            {% endif %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Article</th>
+                    <th>Prix unitaire</th>
+                    <th>Quantité à acheter</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Fraises</td>
+                    <td>2.50 €</td>
+                    <!-- Input de quantité. Name doit être unique. Min 0 est important. -->
+                    <td><input type="number" name="Fraises" value="0" min="0" style="width: 50px;"></td>
+                </tr>
+                <tr>
+                    <td>Haricots</td>
+                    <td>1.80 €</td>
+                    <td><input type="number" name="Haricots" value="0" min="0" style="width: 50px;"></td>
+                </tr>
+                <tr>
+                    <td>Laine</td>
+                    <td>12.00 €</td>
+                    <td><input type="number" name="Laine" value="0" min="0" style="width: 50px;"></td>
+                </tr>
+                <tr>
+                    <td>Peches</td>
+                    <td>3.00 €</td>
+                    <td><input type="number" name="Peches" value="0" min="0" style="width: 50px;"></td>
+                </tr>
+                <tr>
+                    <td>Pasteques</td>
+                    <td>7.00 €</td>
+                    <td><input type="number" name="Pasteques" value="0" min="0" style="width: 50px;"></td>
+                </tr>
+                <tr>
+                    <td>Pates</td>
+                    <td>1.20 €</td>
+                    <td><input type="number" name="Pates" value="0" min="0" style="width: 50px;"></td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <br>
+        <!-- Bouton unique pour soumettre l'ensemble du panier -->
+        <button type="submit" style="padding: 10px 20px; background-color: green; color: white; border: none; cursor: pointer;">
+            Acheter le panier
+        </button>
+
+    </form>
+    
+    <!-- Zone de message pour les erreurs de validation -->
+    {% if error_message %}
+        <p style="color: red; margin-top: 15px;">{{ error_message }}</p>
+    {% endif %}
+
+    <br>
+    <p>Cliquez ici pour <a href="{{ url_for('login') }}">déconnexion ou changement d'utilisateur.</a></p> 
+
+</body>
+</html>

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Statut de la Commande</title>
+    <style>
+        .order-summary {
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .order-summary table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .order-summary th, .order-summary td {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            text-align: left;
+        }
+        .total-row {
+            font-weight: bold;
+            border-top: 2px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    {% if status == 'ok' %}
+        <h1>✅ Commande Réussie !</h1>
+        <p>Merci pour votre commande, {{ user }}. Les détails sont ci-dessous.</p>
+        
+    {% elif status == 'error' %}
+        <h1 style="color: red;">❌ PAIEMENT ÉCHOUÉ !</h1>
+        <p>Une erreur est survenue lors du traitement de votre commande. Veuillez réessayer.</p>
+
+    {% elif status == 'error_auth' %}
+        <h1 style="color: darkred;">🛑 ACCÈS REFUSÉ !</h1>
+        <p>Votre jeton d'authentification a expiré ou est invalide. Veuillez vous reconnecter.</p>
+
+    {% elif status == 'error_service' %}
+        <h1 style="color: darkorange;">⚠️ SERVICE INDISPONIBLE !</h1>
+        <p>Le Service de Commandes est hors-ligne (Port 5001 ou 5003). Veuillez réessayer plus tard.</p>
+        
+    {% else %}
+        <h1 style="color: gray;">Statut de la commande en attente.</h1>
+        <p>Une erreur s'est peut-être produite, mais le statut n'est pas clair.</p>
+        
+    {% endif %}
+
+    <!-- Affichage du résumé de la commande (quel que soit le statut) -->
+    {% if order_details %}
+        <div class="order-summary">
+            <h3>Résumé du Panier :</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Article</th>
+                        <th>Quantité</th>
+                        <th>Prix Unitaire</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set grand_total = 0 %}
+                    {% for item in order_details %}
+                        <tr>
+                            <td>{{ item.article }}</td>
+                            <td>{{ item.quantity }}</td>
+                            <td>{{ "%.2f"|format(item.unit_price) }} €</td>
+                            <td>{{ "%.2f"|format(item.total_price) }} €</td>
+                            {% set grand_total = grand_total + item.total_price %}
+                        </tr>
+                    {% endfor %}
+                    <tr class="total-row">
+                        <td colspan="3" style="text-align: right;">Total de la Commande :</td>
+                        <td>{{ "%.2f"|format(grand_total) }} €</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+
+    <br>
+    <!-- Lien de retour vers l'accueil -->
+    <p>Cliquez ici pour <a href="{{ url_for('accueil', user=user) }}">retourner à la liste des articles.</a></p> 
+
+</body>
+</html>
