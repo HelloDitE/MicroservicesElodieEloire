@@ -3,74 +3,262 @@
 <head>
     <meta charset="UTF-8">
     <title>Accueil</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root{
+            --bg1: #f6f8fb;
+            --card: #ffffff;
+            --muted: #6b7280;
+            --accent: #059669; /* vert */
+            --accent-dark: #047857;
+            --danger: #dc2626;
+            --table-head: #eef2ff;
+            --shadow: 0 6px 20px rgba(13, 38, 59, 0.08);
+            font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+        }
+        html,body{
+            height:100%;
+            margin:0;
+            background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+            color:#0f172a;
+        }
+        .wrap{
+            max-width:960px;
+            margin:36px auto;
+            padding:22px;
+        }
+        header.app-header{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            margin-bottom:18px;
+        }
+        .brand{
+            display:flex;
+            align-items:center;
+            gap:12px;
+        }
+        .logo{
+            width:52px;
+            height:52px;
+            border-radius:10px;
+            background:linear-gradient(135deg,var(--accent),var(--accent-dark));
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            color:white;
+            font-weight:700;
+            box-shadow: var(--shadow);
+        }
+        .title{
+            line-height:1;
+        }
+        .title h1{
+            margin:0;
+            font-size:18px;
+            font-weight:600;
+        }
+        .title p{
+            margin:0;
+            font-size:13px;
+            color:var(--muted);
+        }
+
+        .card{
+            background:var(--card);
+            border-radius:12px;
+            padding:20px;
+            box-shadow:var(--shadow);
+        }
+
+        .intro{
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:12px;
+            margin-bottom:12px;
+        }
+        .intro h2{
+            margin:0;
+            font-size:16px;
+            font-weight:600;
+        }
+        .user-greet{
+            color:var(--muted);
+            font-size:14px;
+        }
+
+        table{
+            width:100%;
+            border-collapse:collapse;
+            margin-top:12px;
+        }
+        thead th{
+            text-align:left;
+            padding:12px 10px;
+            background:var(--table-head);
+            font-size:13px;
+            color:#111827;
+            border-bottom:1px solid rgba(15,23,42,0.06);
+        }
+        tbody td{
+            padding:12px 10px;
+            font-size:14px;
+            vertical-align:middle;
+            border-bottom:1px solid rgba(15,23,42,0.04);
+        }
+        tbody tr:hover{
+            background: rgba(5,150,105,0.03);
+        }
+        .price{
+            color: #0f172a;
+            font-weight:600;
+            width:120px;
+        }
+        .qty{
+            width:120px;
+            text-align:right;
+        }
+        input[type="number"]{
+            -moz-appearance: textfield;
+            appearance: textfield;
+            border:1px solid #e6eef6;
+            padding:6px 8px;
+            border-radius:6px;
+            width:68px;
+            text-align:center;
+            background: #fbfdff;
+            font-size:14px;
+            color:#0f172a;
+        }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .actions{
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:12px;
+            margin-top:18px;
+            flex-wrap:wrap;
+        }
+
+        .btn-primary{
+            background:linear-gradient(180deg,var(--accent),var(--accent-dark));
+            color:white;
+            border:none;
+            padding:10px 18px;
+            border-radius:8px;
+            cursor:pointer;
+            font-weight:600;
+            box-shadow: 0 6px 18px rgba(5,150,105,0.16);
+        }
+        .btn-primary:active{ transform: translateY(1px); }
+
+        .link-logout{
+            color:var(--muted);
+            text-decoration:none;
+            font-size:14px;
+            transition: color .15s ease;
+        }
+        .link-logout:hover{ color: #111827; text-decoration:underline; }
+
+        .error{
+            color:var(--danger);
+            margin-top:12px;
+            font-weight:600;
+        }
+
+        @media (max-width:600px){
+            .intro{ flex-direction:column; align-items:flex-start; gap:6px; }
+            .price,.qty{ width:auto; text-align:left; }
+            input[type="number"]{ width:60px; }
+        }
+    </style>
 </head>
 <body>
-    <h1>Bonjour M. {{ user }} !</h1>
-    <h2>Liste des articles et panier :</h2>
+    <div class="wrap">
+        <header class="app-header">
+            <div class="brand">
+                <div class="logo" aria-hidden="true">🧺</div>
+                <div class="title">
+                    <h1>Marché Local</h1>
+                    <p>Produits frais et artisanaux</p>
+                </div>
+            </div>
+            <div class="user-greet">Bonjour M. <strong>{{ user }}</strong></div>
+        </header>
 
-    <!-- Le formulaire entier sera soumis à la route /submit_order -->
-    <form method="POST" action="/submit_order/{{ user }}">
-            {% if token %}
-            <input type="hidden" name="user_token" value="{{ token }}">
-            {% endif %}
-        <table>
-            <thead>
-                <tr>
-                    <th>Article</th>
-                    <th>Prix unitaire</th>
-                    <th>Quantité à acheter</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Fraises</td>
-                    <td>2.50 €</td>
-                    <!-- Input de quantité. Name doit être unique. Min 0 est important. -->
-                    <td><input type="number" name="Fraises" value="0" min="0" style="width: 50px;"></td>
-                </tr>
-                <tr>
-                    <td>Haricots</td>
-                    <td>1.80 €</td>
-                    <td><input type="number" name="Haricots" value="0" min="0" style="width: 50px;"></td>
-                </tr>
-                <tr>
-                    <td>Laine</td>
-                    <td>12.00 €</td>
-                    <td><input type="number" name="Laine" value="0" min="0" style="width: 50px;"></td>
-                </tr>
-                <tr>
-                    <td>Peches</td>
-                    <td>3.00 €</td>
-                    <td><input type="number" name="Peches" value="0" min="0" style="width: 50px;"></td>
-                </tr>
-                <tr>
-                    <td>Pasteques</td>
-                    <td>7.00 €</td>
-                    <td><input type="number" name="Pasteques" value="0" min="0" style="width: 50px;"></td>
-                </tr>
-                <tr>
-                    <td>Pates</td>
-                    <td>1.20 €</td>
-                    <td><input type="number" name="Pates" value="0" min="0" style="width: 50px;"></td>
-                </tr>
-            </tbody>
-        </table>
-        
-        <br>
-        <!-- Bouton unique pour soumettre l'ensemble du panier -->
-        <button type="submit" style="padding: 10px 20px; background-color: green; color: white; border: none; cursor: pointer;">
-            Acheter le panier
-        </button>
+        <main class="card" role="main" aria-labelledby="shop-title">
+            <div class="intro">
+                <h2 id="shop-title">Liste des articles et panier</h2>
+                <div style="color:var(--muted); font-size:13px;">Sélectionnez les quantités puis validez votre commande</div>
+            </div>
 
-    </form>
-    
-    <!-- Zone de message pour les erreurs de validation -->
-    {% if error_message %}
-        <p style="color: red; margin-top: 15px;">{{ error_message }}</p>
-    {% endif %}
+            <form method="POST" action="/submit_order/{{ user }}">
+                {% if token %}
+                <input type="hidden" name="user_token" value="{{ token }}">
+                {% endif %}
+                <table role="table" aria-label="Tableau des produits">
+                    <thead>
+                        <tr>
+                            <th scope="col">Article</th>
+                            <th scope="col">Prix unitaire</th>
+                            <th scope="col">Quantité à acheter</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Fraises</td>
+                            <td class="price">2.50 €</td>
+                            <td class="qty"><input aria-label="Quantité Fraises" type="number" name="Fraises" value="0" min="0"></td>
+                        </tr>
+                        <tr>
+                            <td>Haricots</td>
+                            <td class="price">1.80 €</td>
+                            <td class="qty"><input aria-label="Quantité Haricots" type="number" name="Haricots" value="0" min="0"></td>
+                        </tr>
+                        <tr>
+                            <td>Laine</td>
+                            <td class="price">12.00 €</td>
+                            <td class="qty"><input aria-label="Quantité Laine" type="number" name="Laine" value="0" min="0"></td>
+                        </tr>
+                        <tr>
+                            <td>Pêches</td>
+                            <td class="price">3.00 €</td>
+                            <td class="qty"><input aria-label="Quantité Peches" type="number" name="Peches" value="0" min="0"></td>
+                        </tr>
+                        <tr>
+                            <td>Pasteques</td>
+                            <td class="price">7.00 €</td>
+                            <td class="qty"><input aria-label="Quantité Pasteques" type="number" name="Pasteques" value="0" min="0"></td>
+                        </tr>
+                        <tr>
+                            <td>Pâtes</td>
+                            <td class="price">1.20 €</td>
+                            <td class="qty"><input aria-label="Quantité Pates" type="number" name="Pates" value="0" min="0"></td>
+                        </tr>
+                    </tbody>
+                </table>
 
-    <br>
-    <p>Cliquez ici pour <a href="{{ url_for('login') }}">déconnexion ou changement d'utilisateur.</a></p> 
+                <div class="actions">
+                    <button type="submit" class="btn-primary" title="Acheter le panier">Acheter le panier</button>
 
+                    <div>
+                        {% if error_message %}
+                            <div class="error" role="alert">{{ error_message }}</div>
+                        {% endif %}
+                        <div style="margin-top:8px;">
+                            <a class="link-logout" href="{{ url_for('login') }}">Déconnexion / Changement d'utilisateur</a>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </main>
+    </div>
 </body>
 </html>

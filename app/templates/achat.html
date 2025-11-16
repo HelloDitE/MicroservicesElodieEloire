@@ -64,14 +64,13 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% set grand_total = 0 %}
+                    {% set grand_total = order_details|sum(attribute='total_price') %}
                     {% for item in order_details %}
                         <tr>
                             <td>{{ item.article }}</td>
                             <td>{{ item.quantity }}</td>
                             <td>{{ "%.2f"|format(item.unit_price) }} €</td>
                             <td>{{ "%.2f"|format(item.total_price) }} €</td>
-                            {% set grand_total = grand_total + item.total_price %}
                         </tr>
                     {% endfor %}
                     <tr class="total-row">
