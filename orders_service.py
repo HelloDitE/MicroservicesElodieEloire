@@ -54,8 +54,8 @@ def create_order():
     # 2. Logique de paiement et d'enregistrement (Remplacement de process_payment)
     total_amount = round(sum(item['total_price'] for item in cart_items), 2)
     
-    # Simuler un succès 1 fois sur 2 (Logique métier)
-    if random.random() < 0.5:
+    # Simuler un succès 4 fois sur 5
+    if random.random() < 0.8:
         # PAIEMENT RÉUSSI (et Enregistrement)
         try:
             orders_data = load_data(ORDERS_FILE)

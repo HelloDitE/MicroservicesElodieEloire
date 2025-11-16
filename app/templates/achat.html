@@ -2,89 +2,307 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Statut de la Commande</title>
     <style>
-        .order-summary {
-            margin-top: 20px;
-            border: 1px solid #ccc;
-            padding: 15px;
-            border-radius: 5px;
-            background-color: #f9f9f9;
+        :root{
+            --bg:#f4f7fb;
+            --card:#ffffff;
+            --muted:#6b7280;
+            --accent:#0ea5a4;
+            --success:#16a34a;
+            --danger:#dc2626;
+            --warn:#d97706;
+            --glass: rgba(255,255,255,0.6);
+            --radius:12px;
+            --shadow: 0 6px 18px rgba(15,23,42,0.08);
         }
-        .order-summary table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
+        *{box-sizing:border-box}
+        body{
+            margin:0;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+            background: linear-gradient(180deg, #f7fbff 0%, var(--bg) 100%);
+            color:#0f172a;
+            -webkit-font-smoothing:antialiased;
+            -moz-osx-font-smoothing:grayscale;
+            padding:32px;
         }
-        .order-summary th, .order-summary td {
-            padding: 8px;
-            border-bottom: 1px solid #eee;
-            text-align: left;
+        .container{
+            max-width:980px;
+            margin:0 auto;
         }
-        .total-row {
-            font-weight: bold;
-            border-top: 2px solid #ccc;
+        header{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:16px;
+            margin-bottom:20px;
+        }
+        .brand{
+            display:flex;
+            gap:12px;
+            align-items:center;
+        }
+        .logo{
+            width:52px;
+            height:52px;
+            border-radius:10px;
+            background:linear-gradient(135deg,var(--accent),#7dd3fc);
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            color:white;
+            font-weight:700;
+            box-shadow: var(--shadow);
+            flex:0 0 52px;
+        }
+        h1.site-title{
+            margin:0;
+            font-size:18px;
+            letter-spacing:0.2px;
+        }
+        .subtitle{
+            color:var(--muted);
+            font-size:13px;
+            margin-top:4px;
+        }
+        main.card{
+            background:var(--card);
+            padding:20px;
+            border-radius:var(--radius);
+            box-shadow:var(--shadow);
+        }
+
+        /* Status box */
+        .status{
+            display:flex;
+            gap:14px;
+            align-items:flex-start;
+            padding:16px;
+            border-radius:10px;
+            margin-bottom:18px;
+        }
+        .status .icon{
+            font-size:30px;
+            line-height:1;
+            width:46px;
+            height:46px;
+            border-radius:10px;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            background:var(--glass);
+            box-shadow: 0 4px 10px rgba(2,6,23,0.06) inset;
+        }
+        .status h2{ margin:0 0 6px 0; font-size:17px; }
+        .status p{ margin:0; color:var(--muted); font-size:14px; }
+
+        .status.ok{ background:rgba(16,185,129,0.06); border-left:4px solid var(--success); }
+        .status.ok .icon{ background:rgba(16,185,129,0.12); color:var(--success); }
+
+        .status.error{ background:rgba(239,68,68,0.06); border-left:4px solid var(--danger); }
+        .status.error .icon{ background:rgba(239,68,68,0.12); color:var(--danger); }
+
+        .status.error_auth{ background:rgba(185,28,28,0.06); border-left:4px solid #8b0000; }
+        .status.error_auth .icon{ background:rgba(185,28,28,0.12); color:#8b0000; }
+
+        .status.error_service{ background:rgba(245,158,11,0.06); border-left:4px solid var(--warn); }
+        .status.error_service .icon{ background:rgba(245,158,11,0.12); color:var(--warn); }
+
+        .status.pending{ background:rgba(99,102,241,0.04); border-left:4px solid #6b7280; }
+        .status.pending .icon{ background:rgba(99,102,241,0.08); color:#4f46e5; }
+
+        /* Order summary */
+        .order-summary{
+            margin-top:6px;
+            padding:16px;
+            border-radius:10px;
+            background:linear-gradient(180deg, #ffffff, #fbfdff);
+            box-shadow: 0 6px 20px rgba(12,18,39,0.04);
+            border:1px solid rgba(15,23,42,0.03);
+        }
+        .order-summary h3{ margin:0 0 12px 0; font-size:15px; }
+        .table-wrap{ overflow:auto; border-radius:8px; }
+        table{
+            width:100%;
+            border-collapse:collapse;
+            min-width:560px;
+            font-size:14px;
+        }
+        th, td{
+            padding:12px 14px;
+            text-align:left;
+        }
+        thead th{
+            color:var(--muted);
+            font-weight:600;
+            font-size:13px;
+            background:transparent;
+        }
+        tbody tr{
+            border-bottom:1px dashed rgba(15,23,42,0.05);
+        }
+        tbody tr:nth-child(even){
+            background:rgba(15,23,42,0.01);
+        }
+        .price{ white-space:nowrap; }
+        .total-row td{
+            padding-top:14px;
+            font-weight:700;
+            background:transparent;
+        }
+
+        /* Button/link */
+        .actions{
+            margin-top:18px;
+            display:flex;
+            gap:12px;
+            align-items:center;
+            flex-wrap:wrap;
+        }
+        .btn{
+            display:inline-flex;
+            gap:10px;
+            align-items:center;
+            padding:10px 14px;
+            border-radius:10px;
+            background:linear-gradient(90deg,var(--accent),#7c3aed);
+            color:white;
+            text-decoration:none;
+            font-weight:600;
+            box-shadow: 0 8px 22px rgba(12,18,39,0.08);
+            border: none;
+            cursor:pointer;
+            font-size:14px;
+        }
+        .btn.ghost{
+            background:transparent;
+            color:var(--muted);
+            border:1px solid rgba(15,23,42,0.06);
+            box-shadow:none;
+        }
+        footer{
+            margin-top:22px;
+            color:var(--muted);
+            font-size:13px;
+            text-align:center;
+        }
+
+        /* Responsive */
+        @media (max-width:640px){
+            body{ padding:18px; }
+            .logo{ width:44px; height:44px; }
+            .brand{ gap:10px; }
+            th, td{ padding:10px; font-size:13px; }
+            .status{ flex-direction:row; gap:10px; }
+            .status .icon{ width:40px; height:40px; font-size:22px; }
+            .table-wrap{ overflow:auto; }
+            .btn{ padding:9px 12px; font-size:13px; }
         }
     </style>
 </head>
 <body>
-    {% if status == 'ok' %}
-        <h1>✅ Commande Réussie !</h1>
-        <p>Merci pour votre commande, {{ user }}. Les détails sont ci-dessous.</p>
-        
-    {% elif status == 'error' %}
-        <h1 style="color: red;">❌ PAIEMENT ÉCHOUÉ !</h1>
-        <p>Une erreur est survenue lors du traitement de votre commande. Veuillez réessayer.</p>
+    <div class="container">
+        <header>
+            <div class="brand">
+                <div class="logo">🧺</div>
+                <div>
+                    <h1 class="site-title">Statut de la Commande</h1>
+                    <div class="subtitle">Suivi en temps réel — utilisateur : {{ user }}</div>
+                </div>
+            </div>
+            <div class="subtitle">Commande &amp; Paiement</div>
+        </header>
 
-    {% elif status == 'error_auth' %}
-        <h1 style="color: darkred;">🛑 ACCÈS REFUSÉ !</h1>
-        <p>Votre jeton d'authentification a expiré ou est invalide. Veuillez vous reconnecter.</p>
+        <main class="card">
+            {% if status == 'ok' %}
+                <div class="status ok">
+                    <div class="icon">✅</div>
+                    <div>
+                        <h2>Commande Réussie</h2>
+                        <p>Merci pour votre commande, <strong>{{ user }}</strong>. Le paiement a été confirmé et votre commande est en cours de traitement.</p>
+                    </div>
+                </div>
 
-    {% elif status == 'error_service' %}
-        <h1 style="color: darkorange;">⚠️ SERVICE INDISPONIBLE !</h1>
-        <p>Le Service de Commandes est hors-ligne (Port 5001 ou 5003). Veuillez réessayer plus tard.</p>
-        
-    {% else %}
-        <h1 style="color: gray;">Statut de la commande en attente.</h1>
-        <p>Une erreur s'est peut-être produite, mais le statut n'est pas clair.</p>
-        
-    {% endif %}
+            {% elif status == 'error' %}
+                <div class="status error">
+                    <div class="icon">❌</div>
+                    <div>
+                        <h2>Paiement Échoué</h2>
+                        <p>Une erreur est survenue lors du traitement du paiement. Veuillez vérifier vos informations de paiement ou réessayer.</p>
+                    </div>
+                </div>
 
-    <!-- Affichage du résumé de la commande (quel que soit le statut) -->
-    {% if order_details %}
-        <div class="order-summary">
-            <h3>Résumé du Panier :</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Article</th>
-                        <th>Quantité</th>
-                        <th>Prix Unitaire</th>
-                        <th>Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% set grand_total = order_details|sum(attribute='total_price') %}
-                    {% for item in order_details %}
-                        <tr>
-                            <td>{{ item.article }}</td>
-                            <td>{{ item.quantity }}</td>
-                            <td>{{ "%.2f"|format(item.unit_price) }} €</td>
-                            <td>{{ "%.2f"|format(item.total_price) }} €</td>
-                        </tr>
-                    {% endfor %}
-                    <tr class="total-row">
-                        <td colspan="3" style="text-align: right;">Total de la Commande :</td>
-                        <td>{{ "%.2f"|format(grand_total) }} €</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    {% endif %}
+            {% elif status == 'error_auth' %}
+                <div class="status error_auth">
+                    <div class="icon">🛑</div>
+                    <div>
+                        <h2>Accès Refusé</h2>
+                        <p>Votre jeton d'authentification a expiré ou est invalide. Veuillez vous reconnecter pour poursuivre.</p>
+                    </div>
+                </div>
 
-    <br>
-    <!-- Lien de retour vers l'accueil -->
-    <p>Cliquez ici pour <a href="{{ url_for('accueil', user=user) }}">retourner à la liste des articles.</a></p> 
+            {% elif status == 'error_service' %}
+                <div class="status error_service">
+                    <div class="icon">⚠️</div>
+                    <div>
+                        <h2>Service Indisponible</h2>
+                        <p>Le service de commandes est temporairement hors ligne (ports 5001 ou 5003). Réessayez dans quelques instants.</p>
+                    </div>
+                </div>
 
+            {% else %}
+                <div class="status pending">
+                    <div class="icon">⏳</div>
+                    <div>
+                        <h2>Statut en Attente</h2>
+                        <p>Le statut de la commande n'est pas clair. Vous pouvez consulter le résumé ci-dessous ou réessayer ultérieurement.</p>
+                    </div>
+                </div>
+            {% endif %}
+
+            {% if order_details %}
+                <div class="order-summary">
+                    <h3>Résumé du Panier</h3>
+                    <div class="table-wrap">
+                        <table role="table" aria-label="Résumé du panier">
+                            <thead>
+                                <tr>
+                                    <th>Article</th>
+                                    <th>Quantité</th>
+                                    <th>Prix Unitaire</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% set grand_total = order_details|sum(attribute='total_price') %}
+                                {% for item in order_details %}
+                                    <tr>
+                                        <td>{{ item.article }}</td>
+                                        <td>{{ item.quantity }}</td>
+                                        <td class="price">{{ "%.2f"|format(item.unit_price) }} €</td>
+                                        <td class="price">{{ "%.2f"|format(item.total_price) }} €</td>
+                                    </tr>
+                                {% endfor %}
+                                <tr class="total-row">
+                                    <td colspan="3" style="text-align: right;">Total de la Commande :</td>
+                                    <td class="price">{{ "%.2f"|format(grand_total) }} €</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% endif %}
+
+            <div class="actions">
+                <a class="btn" href="{{ url_for('accueil', user=user) }}">← Retour à la liste des articles</a>
+                <a class="btn ghost" href="javascript:location.reload()">Rafraîchir le statut</a>
+            </div>
+        </main>
+
+        <footer>
+            Si vous rencontrez un problème, contactez le support ou réessayez plus tard.
+        </footer>
+    </div>
 </body>
 </html>
