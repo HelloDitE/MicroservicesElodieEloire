@@ -1,3 +1,10 @@
+'''Ce fichier implémente un API Gateway, c’est-à-dire une “porte d’entrée unique” dans une architecture microservices.
+Il sert à :
+- vérifier l’authentification de toutes les requêtes (JWT obligatoire),
+- router les requêtes vers les microservices internes (ici : Orders Service),
+- protéger les services internes (personne ne peut appeler le Orders Service directement sans token).'''
+
+
 # gateway.py
 from flask import Flask, request, jsonify, abort
 import requests

@@ -1,4 +1,11 @@
+'''Ce fichier implémente un microservice d’authentification en Flask qui :
+- gère l’inscription (/auth/register),
+- gère la connexion et renvoie un JWT (/auth/login),
+- valide un JWT (/auth/validate),
+- stocke les utilisateurs dans une base SQLite (users.db) avec des hashs de mots de passe (bcrypt).'''
+
 # auth_service.py
+#Ce code implémente un service d'authentification utilisant Flask, JWT et SQLite.
 from datetime import datetime, timedelta, timezone
 from flask import Flask, request, jsonify
 import jwt
@@ -7,7 +14,7 @@ from flask_bcrypt import Bcrypt
 
 # --- 1. Initialisation de l'API ---
 auth_app = Flask(__name__)
-auth_app.config['SECRET_KEY'] = 'SuperSecretKeyPourTP'
+auth_app.config['SECRET_KEY'] = 'SuperSecretKeyPourTP' # Clé secrète pour signer les JWT
 bcrypt = Bcrypt(auth_app) 
 
 # --- 2. Logique de Base de Données (Transfert de database.py) ---
@@ -77,7 +84,6 @@ def register():
     else:
         return jsonify({"message": "Erreur lors de la création du compte."}), 500
 
-@auth_app.route('/auth/login', methods=['POST'])
 @auth_app.route('/auth/login', methods=['POST'])
 def login():
     """API pour la connexion : vérifie et génère un JWT."""
