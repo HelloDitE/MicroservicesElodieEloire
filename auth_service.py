@@ -36,6 +36,15 @@ def init_db():
             password_hash TEXT NOT NULL
         )
     ''')
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL,
+        token TEXT NOT NULL,
+        expires_at TEXT NOT NULL
+    )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -94,20 +103,40 @@ def login():
     user_record = get_user_by_username(username)
     
     if user_record and check_password(user_record['password_hash'], password):
-        # Génération du JWT (Valable 1 heure)
-        payload = {
+        # Génération du Access Token (expire dans 1h)
+        access_payload = {
             'user': username,
-            'exp': datetime.now(timezone.utc) + timedelta(hours=1),
+            'exp': datetime.now(timezone.utc) + timedelta(minutes=30),
             'iat': datetime.now(timezone.utc)
         }
-        
-        token = jwt.encode(payload, auth_app.config['SECRET_KEY'], algorithm='HS256')
+        access_token = jwt.encode(access_payload, auth_app.config['SECRET_KEY'], algorithm='HS256')
+
+        # Génération du Refresh Token (expire dans 7 jours)
+        refresh_payload = {
+            'user': username,
+            'exp': datetime.now(timezone.utc) + timedelta(days=7),
+            'iat': datetime.now(timezone.utc),
+            'type': 'refresh'
+        }
+        refresh_token = jwt.encode(refresh_payload, auth_app.config['SECRET_KEY'], algorithm='HS256')
+
+        # Sauvegarde du refresh token en base
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO refresh_tokens (username, token, expires_at) VALUES (?, ?, ?)",
+            (username, refresh_token, str(datetime.now(timezone.utc) + timedelta(days=7))))
+        conn.commit()
+        conn.close()
+
         return jsonify({
             'message': 'Connexion réussie',
-            'token': token
+            'access_token': access_token,
+            'refresh_token': refresh_token
         }), 200
-    else:
-        return jsonify({'message': "Nom d'utilisateur ou mot de passe incorrect."}, 401)
+    
+    return jsonify({"message": "Identifiants incorrects."}), 401
+
+
 
 @auth_app.route('/auth/validate', methods=['POST'])
 def validate_token():
@@ -129,6 +158,68 @@ def validate_token():
         return jsonify({"message": "Token expiré."}), 401
     except Exception:
         return jsonify({"message": "Token invalide."}), 401
+
+
+@auth_app.route('/auth/refresh', methods=['POST'])
+def refresh_token():
+    data = request.get_json()
+    refresh_token = data.get('refresh_token')
+
+    if not refresh_token:
+        return jsonify({"message": "Refresh token manquant"}), 400
+
+    try:
+        payload = jwt.decode(refresh_token, auth_app.config['SECRET_KEY'], algorithms=['HS256'])
+
+        if payload.get('type') != 'refresh':
+            return jsonify({"message": "Token invalide"}), 401
+
+        username = payload['user']
+
+        # Vérif en base
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM refresh_tokens WHERE username = ? AND token = ?", 
+                       (username, refresh_token))
+        record = cursor.fetchone()
+        conn.close()
+
+        if not record:
+            return jsonify({"message": "Refresh token non reconnu"}), 401
+
+        # Génération d’un nouvel Access Token
+        new_access_payload = {
+            'user': username,
+            'exp': datetime.now(timezone.utc) + timedelta(minutes=30),
+            'iat': datetime.now(timezone.utc)
+        }
+        new_access_token = jwt.encode(new_access_payload, auth_app.config['SECRET_KEY'], algorithm='HS256')
+
+        return jsonify({"access_token": new_access_token}), 200
+
+    except jwt.ExpiredSignatureError:
+        return jsonify({"message": "Refresh token expiré"}), 401
+    except Exception:
+        return jsonify({"message": "Token invalide"}), 401
+
+
+
+@auth_app.route('/auth/logout', methods=['POST'])
+def logout():
+    data = request.get_json()
+    refresh_token = data.get('refresh_token')
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM refresh_tokens WHERE token = ?", (refresh_token,))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"message": "Déconnecté avec succès"}), 200
+
+
+
+
 
 if __name__ == '__main__':
     # Le Auth Service s'exécute sur le port 5002
