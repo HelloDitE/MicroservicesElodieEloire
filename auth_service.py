@@ -6,27 +6,26 @@ Ce fichier implémente un microservice d’authentification en Flask qui :
 - gère un refresh token (/auth/refresh),
 - stocke les utilisateurs et tokens dans SQLite.
 """
-
+# auth_service.py
 from datetime import datetime, timedelta, timezone
 from flask import Flask, request, jsonify
 from authlib.jose import jwt, JoseError
 import sqlite3
 from flask_bcrypt import Bcrypt
+from functools import wraps
 
 # --- 1. Initialisation de l'API ---
 auth_app = Flask(__name__)
-auth_app.config['SECRET_KEY'] = 'SuperSecretKeyPourTP'  # Clé secrète Authlib
+auth_app.config['SECRET_KEY'] = 'SuperSecretKeyPourTP'
 bcrypt = Bcrypt(auth_app)
 
 # --- 2. Base de données SQLite ---
 DATABASE_NAME = 'users.db'
 
-
 def get_db_connection():
     conn = sqlite3.connect(DATABASE_NAME)
     conn.row_factory = sqlite3.Row
     return conn
-
 
 def init_db():
     """Crée les tables si elles n'existent pas."""
@@ -53,7 +52,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-# --- 3. Fonctions utilitaires de gestion des utilisateurs ---
 def get_user_by_username(username):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -62,7 +60,6 @@ def get_user_by_username(username):
     conn.close()
     return user
 
-# Ajoute un nouvel utilisateur
 def add_user(username, password):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -76,22 +73,49 @@ def add_user(username, password):
     finally:
         conn.close()
 
-# Vérifie le mot de passe
 def check_password(hashed_password, password):
     return bcrypt.check_password_hash(hashed_password.encode('utf-8'), password)
-
 
 # Initialisation DB
 init_db()
 
 
 # ================================
-#  ROUTE : REGISTER
+#  Décorateur d'authentification
 # ================================
+def require_auth(func):
+    """
+    Vérifie que le JWT envoyé dans le header Authorization est valide.
+    Décorateur réutilisable pour protéger n'importe quelle route.
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        auth_header = request.headers.get("Authorization")
+        if not auth_header:
+            return jsonify({"message": "Token manquant"}), 401
+
+        parts = auth_header.split()
+        if len(parts) != 2 or parts[0].lower() != "bearer":
+            return jsonify({"message": "Format du token invalide"}), 401
+
+        token = parts[1]
+
+        try:
+            payload = jwt.decode(token, auth_app.config['SECRET_KEY'])
+            return func(payload, *args, **kwargs)
+        except JoseError:
+            return jsonify({"message": "Token invalide ou expiré"}), 401
+
+    return wrapper
+
+
+# ================================
+#  ROUTES PUBLIQUES
+# ================================
+
 @auth_app.route('/auth/register', methods=['POST'])
-# cette fonction gère l'inscription des utilisateurs
 def register():
-    """API pour créer un compte utilisateur."""
+    """Inscription utilisateur"""
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
@@ -105,36 +129,25 @@ def register():
         return jsonify({"message": "Erreur interne."}), 500
 
 
-# ================================
-#  ROUTE : LOGIN (Access + Refresh Token)
-# ================================
 @auth_app.route('/auth/login', methods=['POST'])
-# cette fonction gère la connexion des utilisateurs
 def login():
+    """Connexion utilisateur, génération access + refresh token"""
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
 
     user_record = get_user_by_username(username)
-
     if user_record and check_password(user_record['password_hash'], password):
-
-        # -------------------------------
-        # Génération ACCESS TOKEN (Authlib)
-        # -------------------------------
+        # Access token (30 min)
         access_header = {"alg": "HS256"}
         access_payload = {
             "user": username,
             "iat": int(datetime.now(timezone.utc).timestamp()),
             "exp": int((datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp())
         }
+        access_token = jwt.encode(access_header, access_payload, auth_app.config['SECRET_KEY']).decode()
 
-        access_token = jwt.encode(access_header, access_payload, auth_app.config['SECRET_KEY'])
-        access_token = access_token.decode()  # Authlib retourne bytes
-
-        # -------------------------------
-        # Génération REFRESH TOKEN (Authlib)
-        # -------------------------------
+        # Refresh token (7 jours)
         refresh_header = {"alg": "HS256"}
         refresh_payload = {
             "user": username,
@@ -142,11 +155,9 @@ def login():
             "iat": int(datetime.now(timezone.utc).timestamp()),
             "exp": int((datetime.now(timezone.utc) + timedelta(days=7)).timestamp())
         }
+        refresh_token = jwt.encode(refresh_header, refresh_payload, auth_app.config['SECRET_KEY']).decode()
 
-        refresh_token = jwt.encode(refresh_header, refresh_payload, auth_app.config['SECRET_KEY'])
-        refresh_token = refresh_token.decode()
-
-        # Enregistrer en base
+        # Stockage en base
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
@@ -166,83 +177,74 @@ def login():
 
 
 # ================================
-#  ROUTE : VALIDATE (pour le Gateway)
+#  ROUTES PROTÉGÉES
 # ================================
+
 @auth_app.route('/auth/validate', methods=['POST'])
-# cette fonction valide le token JWT
-def validate_token():
-    data = request.get_json()
-    token = data.get('token')
+@require_auth
+def validate_token(payload):
+    """Validation JWT (pour API Gateway)"""
+    return jsonify({
+        "message": "Token valide",
+        "user": payload["user"]
+    }), 200
 
-    if not token:
-        return jsonify({"message": "Token manquant."}), 400
-
-    try:
-        # Décodage Authlib
-        payload = jwt.decode(token, auth_app.config['SECRET_KEY'])
-        return jsonify({
-            "message": "Token valide",
-            "user": payload["user"]
-        }), 200
-
-    except JoseError:
-        return jsonify({"message": "Token invalide ou expiré"}), 401
-
-
-# ================================
-#  ROUTE : REFRESH TOKEN
-# ================================
 @auth_app.route('/auth/refresh', methods=['POST'])
-# cette fonction gère le rafraîchissement du token JWT
 def refresh_token():
-    data = request.get_json()
+    """Rafraîchissement du token JWT"""
+    data = request.get_json() or {}
     refresh_token = data.get("refresh_token")
-
     if not refresh_token:
         return jsonify({"message": "Refresh token manquant"}), 400
 
+    # Décodage et validation du refresh token
     try:
-        payload = jwt.decode(refresh_token, auth_app.config['SECRET_KEY'])
-
-        if payload.get("type") != "refresh":
-            return jsonify({"message": "Type de token invalide"}), 401
-
-        username = payload["user"]
-
-        # Vérification en base
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM refresh_tokens WHERE username = ? AND token = ?",
-                       (username, refresh_token))
-        record = cursor.fetchone()
-        conn.close()
-
-        if not record:
-            return jsonify({"message": "Refresh token inconnu"}), 401
-
-        # Nouveau Access Token
-        new_header = {"alg": "HS256"}
-        new_payload = {
-            "user": username,
-            "iat": int(datetime.now(timezone.utc).timestamp()),
-            "exp": int((datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp())
-        }
-
-        new_access_token = jwt.encode(new_header, new_payload, auth_app.config['SECRET_KEY'])
-        new_access_token = new_access_token.decode()
-
-        return jsonify({"access_token": new_access_token}), 200
-
+        decoded = jwt.decode(refresh_token, auth_app.config['SECRET_KEY'])
     except JoseError:
         return jsonify({"message": "Refresh token invalide ou expiré"}), 401
 
+    if decoded.get("type") != "refresh" or "user" not in decoded:
+        return jsonify({"message": "Refresh token invalide"}), 401
 
-# ================================
-#  ROUTE : LOGOUT
-# ================================
+    username = decoded["user"]
+
+    # Vérification en base que le refresh token existe pour cet utilisateur
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM refresh_tokens WHERE username = ? AND token = ?", (username, refresh_token))
+    record = cursor.fetchone()
+    conn.close()
+
+    if not record:
+        return jsonify({"message": "Refresh token inconnu"}), 401
+
+    # Vérification d'expiration (optionnelle, prudente)
+    exp = decoded.get("exp")
+    if exp and int(datetime.now(timezone.utc).timestamp()) > int(exp):
+        # supprimer le token expiré de la base
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM refresh_tokens WHERE token = ?", (refresh_token,))
+        conn.commit()
+        conn.close()
+        return jsonify({"message": "Refresh token expiré"}), 401
+
+    # Génération d'un nouvel access token (30 minutes)
+    new_header = {"alg": "HS256"}
+    new_payload = {
+        "user": username,
+        "iat": int(datetime.now(timezone.utc).timestamp()),
+        "exp": int((datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp())
+    }
+    new_access_token = jwt.encode(new_header, new_payload, auth_app.config['SECRET_KEY']).decode()
+
+    return jsonify({"access_token": new_access_token}), 200
+
+
 @auth_app.route('/auth/logout', methods=['POST'])
-# cette fonction gère la déconnexion des utilisateurs
-def logout():
+@require_auth
+def logout(payload):
+    """Déconnexion utilisateur"""
     data = request.get_json()
     refresh_token = data.get("refresh_token")
 
@@ -252,7 +254,7 @@ def logout():
     conn.commit()
     conn.close()
 
-    return jsonify({"message": "Déconnecté avec succès"}), 200
+    return jsonify({"message": f"Utilisateur {payload['user']} déconnecté avec succès."}), 200
 
 
 # --- Lancement du service ---
