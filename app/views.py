@@ -6,12 +6,15 @@ import requests
 # ---------------------------
 # CONFIGURATION DES SERVICES
 # ---------------------------
+#Définit les URLs des microservices utilisés par le front Flask.
+# Le front communique uniquement avec le Gateway, qui lui-même communique avec les autres services
 GATEWAY_URL = "http://localhost:5003/api/orders"
 AUTH_LOGIN_URL = "http://localhost:5002/auth/login"
 AUTH_REGISTER_URL = "http://localhost:5002/auth/register"
 AUTH_REFRESH_URL = "http://localhost:5002/auth/refresh"
 
 # Clé secrète Flask pour la session (stockage temporaire)
+# Pour stocker le token JWT entre les requêtes.
 app.secret_key = "SuperSecretKeyTP"
 
 
@@ -193,6 +196,7 @@ def handle_token_expired(user, items):
 # ==========================
 # 4️⃣ ROUTE PAR DÉFAUT
 # ==========================
+#Sert à rediriger vers la page de login si l'utilisateur accède à la racine.
 @app.route('/')
 def index():
     return redirect(url_for('login'))

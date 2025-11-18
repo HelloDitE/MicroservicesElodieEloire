@@ -20,6 +20,7 @@ ORDERS_SERVICE_URL = "http://localhost:5001"
 # ==================================================
 #  VALIDATION DU TOKEN (appel Auth Service /validate)
 # ==================================================
+# Cette fonction vérifie le token JWT via Auth Service
 def validate_and_get_user():
     """
     Vérifie le token JWT via Authlib (côté Auth Service).
@@ -54,6 +55,7 @@ def validate_and_get_user():
 #  ROUTE PRINCIPALE : /api/orders (POST)
 # ==================================================
 @gateway_app.route('/api/orders', methods=['POST'])
+# cette fonction gère la soumission des commandes via le Gateway
 def handle_submit_order():
 
     # 1. Vérifier le token

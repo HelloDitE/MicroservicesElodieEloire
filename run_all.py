@@ -1,3 +1,5 @@
+'''Code qui lance tous les microservices dans des terminaux séparés.'''
+
 import subprocess
 import time
 import os

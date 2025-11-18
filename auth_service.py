@@ -53,7 +53,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-
+# --- 3. Fonctions utilitaires de gestion des utilisateurs ---
 def get_user_by_username(username):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -62,7 +62,7 @@ def get_user_by_username(username):
     conn.close()
     return user
 
-
+# Ajoute un nouvel utilisateur
 def add_user(username, password):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -76,7 +76,7 @@ def add_user(username, password):
     finally:
         conn.close()
 
-
+# Vérifie le mot de passe
 def check_password(hashed_password, password):
     return bcrypt.check_password_hash(hashed_password.encode('utf-8'), password)
 
@@ -89,6 +89,7 @@ init_db()
 #  ROUTE : REGISTER
 # ================================
 @auth_app.route('/auth/register', methods=['POST'])
+# cette fonction gère l'inscription des utilisateurs
 def register():
     """API pour créer un compte utilisateur."""
     data = request.get_json()
@@ -108,6 +109,7 @@ def register():
 #  ROUTE : LOGIN (Access + Refresh Token)
 # ================================
 @auth_app.route('/auth/login', methods=['POST'])
+# cette fonction gère la connexion des utilisateurs
 def login():
     data = request.get_json()
     username = data.get('username')
@@ -167,6 +169,7 @@ def login():
 #  ROUTE : VALIDATE (pour le Gateway)
 # ================================
 @auth_app.route('/auth/validate', methods=['POST'])
+# cette fonction valide le token JWT
 def validate_token():
     data = request.get_json()
     token = data.get('token')
@@ -190,6 +193,7 @@ def validate_token():
 #  ROUTE : REFRESH TOKEN
 # ================================
 @auth_app.route('/auth/refresh', methods=['POST'])
+# cette fonction gère le rafraîchissement du token JWT
 def refresh_token():
     data = request.get_json()
     refresh_token = data.get("refresh_token")
@@ -237,6 +241,7 @@ def refresh_token():
 #  ROUTE : LOGOUT
 # ================================
 @auth_app.route('/auth/logout', methods=['POST'])
+# cette fonction gère la déconnexion des utilisateurs
 def logout():
     data = request.get_json()
     refresh_token = data.get("refresh_token")
