@@ -11,24 +11,16 @@ AUTH_LOGIN_URL = "http://localhost:5002/auth/login"
 AUTH_REGISTER_URL = "http://localhost:5002/auth/register"
 AUTH_REFRESH_URL = "http://localhost:5002/auth/refresh"
 
-
-# Clé secrète Flask pour la session (stockage temporaire du token)
+# Clé secrète Flask pour la session (stockage temporaire)
 app.secret_key = "SuperSecretKeyTP"
 
 
 # ==========================
 # 1️⃣ PAGE DE CONNEXION
 # ==========================
-
-#C’est la page de connexion et d’inscription.
-#Elle envoie les identifiants au microservice Auth
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """
-    Page de login / inscription.
-    Envoie les infos au microservice d'authentification.
-    """
+    """Page de login / inscription."""
     if request.method == 'POST':
         username = request.form.get('user')
         password = request.form.get('password')
@@ -41,29 +33,35 @@ def login():
         if action == 'register':
             try:
                 r = requests.post(AUTH_REGISTER_URL, json={'username': username, 'password': password})
+
                 if r.status_code == 201:
-                    msg = "✅ Inscription réussie. Connectez-vous maintenant."
-                    return render_template('login.html', error=msg)
+                    return render_template('login.html',
+                                           error="✅ Inscription réussie. Connectez-vous maintenant.")
                 else:
-                    return render_template('login.html', error=r.json().get('message', 'Erreur d’inscription.'))
+                    return render_template('login.html',
+                                           error=r.json().get('message', "Erreur d'inscription."))
             except requests.exceptions.ConnectionError:
-                return render_template('login.html', error="⚠️ Auth Service indisponible (port 5002).")
+                return render_template('login.html',
+                                       error="⚠️ Auth Service indisponible (port 5002).")
 
         # --- CONNEXION ---
         try:
-            r = requests.post(AUTH_LOGIN_URL, json={'username': username, 'password': password})
+            r = requests.post(AUTH_LOGIN_URL,
+                              json={'username': username, 'password': password})
+
             if r.status_code == 200:
-                token = r.json().get('access_token')
-                session['token'] = token  # stocke le JWT dans la session Flask
+                session['token'] = r.json().get('access_token')
                 session['refresh_token'] = r.json().get('refresh_token')
                 session['user'] = username
                 return redirect(url_for('accueil', user=username))
+
             else:
                 return render_template('login.html', error="❌ Identifiants incorrects.")
-        except requests.exceptions.ConnectionError:
-            return render_template('login.html', error="⚠️ Auth Service indisponible (port 5002).")
 
-    # --- GET : afficher la page ---
+        except requests.exceptions.ConnectionError:
+            return render_template('login.html',
+                                   error="⚠️ Auth Service indisponible (port 5002).")
+
     return render_template('login.html')
 
 
@@ -72,10 +70,7 @@ def login():
 # ==========================
 @app.route('/accueil')
 def accueil():
-    """
-    Page principale avec la liste des articles.
-    """
-    user = request.args.get('user') or session.get('user')
+    user = session.get('user')
     token = session.get('token')
 
     if not user or not token:
@@ -85,23 +80,13 @@ def accueil():
 
 
 # ==========================
-# 3️⃣ ENVOI DU PANIER
+# 3️⃣ SOUMISSION D’UNE COMMANDE
 # ==========================
-
-#lit le panier choisi
-#construit la commande
-#envoie la commande au Gateway
-#récupère la réponse
-#affiche le résultat de l’achat
-
 @app.route('/submit_order/<user>', methods=['POST'])
 def submit_order(user):
-    """
-    Envoie le panier au Gateway pour traitement via le microservice Orders.
-    """
-    token = request.form.get('user_token') or session.get('token')
+    token = session.get('token')
 
-    # --- 1. Construire la liste des articles sélectionnés ---
+    # Construction du panier
     articles = {
         'Fraises': 2.50,
         'Haricots': 1.80,
@@ -123,71 +108,86 @@ def submit_order(user):
             })
 
     if not items:
-        return render_template('accueil.html', user=user, token=token,
+        return render_template('accueil.html',
+                               user=user, token=token,
                                error_message="Veuillez sélectionner au moins un article.")
 
-    # --- 2. Appeler le Gateway ---
+    # ------------- FONCTION QUI EFFECTUE L’ENVOI AU GATEWAY -------------
+    def call_gateway(token_to_use):
+        headers = {'Authorization': f'Bearer {token_to_use}'}
+        return requests.post(GATEWAY_URL, json={'items': items}, headers=headers)
+
+    # Premier essai
     try:
-        headers = {'Authorization': f'Bearer {token}'} if token else {}
-        response = requests.post(GATEWAY_URL, json={'items': items}, headers=headers)
+        response = call_gateway(token)
 
-        # --- 3. Analyse de la réponse ---
+        # Si OK → afficher résultat
         if response.status_code in (200, 201):
-            try:
-                data = response.json()
-                # Si c’est une liste, on prend le premier élément
-                if isinstance(data, list) and len(data) > 0:
-                    data = data[0]
-                elif not isinstance(data, dict):
-                    data = {}
+            return render_success(response, user, items)
 
-                status = data.get('status', 'ok')
-            except Exception as e:
-                print("Erreur de parsing JSON :", e)
-                status = "error_internal"
+        # Si 401 → peut-être token expiré → tenter refresh
+        if response.status_code == 401:
+            return handle_token_expired(user, items)
 
-            return render_template('achat.html', user=user, status=status, order_details=items)
-
-
-        elif response.status_code == 401:
-            # Tentative de refresh
-            refresh_token = session.get('refresh_token')
-            r = requests.post(AUTH_REFRESH_URL, json={'refresh_token': refresh_token})
-            
-            if r.status_code == 200:
-                # Remplacer le token et réessayer
-                new_token = r.json().get('access_token')
-                session['token'] = new_token
-
-                headers = {'Authorization': f'Bearer {new_token}'}
-                response = requests.post(GATEWAY_URL, json={'items': items}, headers=headers)
-
-                if response.status_code in (200, 201):
-                    try:
-                        data = response.json()
-                        if isinstance(data, list) and len(data) > 0:
-                            data = data[0]
-                        elif not isinstance(data, dict):
-                            data = {}
-
-                        status = data.get('status', 'ok')
-                    except Exception as e:
-                        print("Erreur de parsing JSON après refresh :", e)
-                        status = "error_internal"
-
-                    return render_template('achat.html', user=user, status=status, order_details=items)
-
-            else:
-                return render_template('achat.html', user=user, status='error_auth')
-
-
-        else:
-            # Autre erreur (service down, etc.)
-            return render_template('achat.html', user=user, status='error_service', order_details=items)
+        # Sinon → erreur service
+        return render_template('achat.html', user=user, status="error_service",
+                               order_details=items)
 
     except requests.exceptions.ConnectionError:
-        # Si le Gateway ne répond pas
-        return render_template('achat.html', user=user, status='error_service', order_details=items)
+        return render_template('achat.html',
+                               user=user, status="error_service",
+                               order_details=items)
+
+
+# ==========================
+# 🔧 UTILITAIRES
+# ==========================
+
+def render_success(response, user, items):
+    """Analyse la réponse du Gateway après un succès."""
+    try:
+        data = response.json()
+        if isinstance(data, list) and data:
+            data = data[0]
+        elif not isinstance(data, dict):
+            data = {}
+
+        status = data.get('status', 'ok')
+
+    except Exception:
+        status = "error_internal"
+
+    return render_template('achat.html', user=user, status=status, order_details=items)
+
+
+def handle_token_expired(user, items):
+    """Gère le cas où le token access est expiré → effectuer refresh."""
+    refresh_token = session.get('refresh_token')
+
+    if not refresh_token:
+        return render_template('achat.html', user=user, status="error_auth")
+
+    # Appeler /auth/refresh
+    try:
+        r = requests.post(AUTH_REFRESH_URL,
+                          json={'refresh_token': refresh_token})
+
+        if r.status_code != 200:
+            return render_template('achat.html', user=user, status="error_auth")
+
+        # Nouveau token
+        new_token = r.json().get('access_token')
+        session['token'] = new_token
+
+        # Réessayer la commande
+        second_try = requests.post(GATEWAY_URL,
+                                   json={'items': items},
+                                   headers={'Authorization': f'Bearer {new_token}'})
+
+        return render_success(second_try, user, items)
+
+    except requests.exceptions.ConnectionError:
+        return render_template('achat.html', user=user, status="error_service")
 
 
 # ==========================
@@ -195,7 +195,4 @@ def submit_order(user):
 # ==========================
 @app.route('/')
 def index():
-    """
-    Redirection directe vers le login.
-    """
     return redirect(url_for('login'))
