@@ -103,12 +103,13 @@ def submit_order(user):
 
     # --- 1. Construire la liste des articles sélectionnés ---
     articles = {
-        'Fraises': 2.50,
-        'Haricots': 1.80,
-        'Laine': 12.00,
-        'Peches': 3.00,
-        'Pasteques': 7.00,
-        'Pates': 1.20
+        'Fraises (barquette de 250g)': 2.50,
+        'Haricots (kg)': 1.80,
+        'Laine': 4.00,
+        'Pêches (kg)': 3.00,
+        'Pastèques': 4.00,
+        'Paquet de pâtes': 1.20,
+        'Cookies': 2.00
     }
 
     items = []
