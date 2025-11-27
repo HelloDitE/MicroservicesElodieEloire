@@ -13,8 +13,8 @@ import requests
 gateway_app = Flask(__name__)
 
 # --- URLs des Microservices ---
-AUTH_SERVICE_URL = "http://localhost:5002/auth"
-ORDERS_SERVICE_URL = "http://localhost:5001"
+AUTH_SERVICE_URL = "http://auth:5002/auth"
+ORDERS_SERVICE_URL = "http://orders:5001"
 
 
 # ==================================================
@@ -22,24 +22,16 @@ ORDERS_SERVICE_URL = "http://localhost:5001"
 # ==================================================
 # Cette fonction vérifie le token JWT via Auth Service
 def validate_and_get_user():
-    """
-    Vérifie le token JWT via Authlib (côté Auth Service).
-    Retourne (user, None) si valide ou (None, error_message) si invalide.
-    """
-
-    # Vérifier le header Authorization
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        return None, "Token manquant ou mauvais format. (Expected: Bearer <token>)"
+        return None, "Token manquant ou mauvais format"
 
-    # Extraire le token
     token = auth_header.split(" ")[1]
 
-    # Appeler Auth Service
     try:
         response = requests.post(
             f"{AUTH_SERVICE_URL}/validate",
-            json={"token": token}
+            headers={"Authorization": f"Bearer {token}"}
         )
 
         if response.status_code == 200:
@@ -49,6 +41,7 @@ def validate_and_get_user():
 
     except requests.exceptions.ConnectionError:
         return None, "Auth Service indisponible."
+
 
 
 # ==================================================
@@ -93,4 +86,4 @@ def handle_submit_order():
 # ==================================================
 if __name__ == '__main__':
     print("API Gateway démarrée sur http://localhost:5003")
-    gateway_app.run(debug=True, port=5003)
+    gateway_app.run(debug=True, port=5003, host='0.0.0.0')

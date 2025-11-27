@@ -8,10 +8,10 @@ import requests
 # ---------------------------
 #Définit les URLs des microservices utilisés par le front Flask.
 # Le front communique uniquement avec le Gateway, qui lui-même communique avec les autres services
-GATEWAY_URL = "http://localhost:5003/api/orders"
-AUTH_LOGIN_URL = "http://localhost:5002/auth/login"
-AUTH_REGISTER_URL = "http://localhost:5002/auth/register"
-AUTH_REFRESH_URL = "http://localhost:5002/auth/refresh"
+GATEWAY_URL = "http://gateway:5003/api/orders"
+AUTH_LOGIN_URL = "http://auth:5002/auth/login"
+AUTH_REGISTER_URL = "http://auth:5002/auth/register"
+AUTH_REFRESH_URL = "http://auth:5002/auth/refresh"
 
 # Clé secrète Flask pour la session (stockage temporaire)
 # Pour stocker le token JWT entre les requêtes.

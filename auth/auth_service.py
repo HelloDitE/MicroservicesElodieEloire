@@ -1,12 +1,4 @@
-"""
-Ce fichier implémente un microservice d’authentification en Flask qui :
-- gère l’inscription (/auth/register),
-- gère la connexion et renvoie un JWT (/auth/login),
-- valide un JWT (/auth/validate),
-- gère un refresh token (/auth/refresh),
-- stocke les utilisateurs et tokens dans SQLite.
-"""
-# auth_service.py
+# auth_service_stateful.py
 from datetime import datetime, timedelta, timezone
 from flask import Flask, request, jsonify
 from authlib.jose import jwt, JoseError
@@ -49,6 +41,15 @@ def init_db():
         )
     ''')
 
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS access_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            token TEXT NOT NULL,
+            expires_at TEXT NOT NULL
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -79,15 +80,21 @@ def check_password(hashed_password, password):
 # Initialisation DB
 init_db()
 
+# ================================
+#  ROUTE DE SANTÉ
+# ================================
+@auth_app.route('/health', methods=['GET'])
+def health_check():
+    """Route simple pour vérifier la santé du service."""
+    return jsonify({"status": "healthy"}), 200
+
 
 # ================================
 #  Décorateur d'authentification
 # ================================
+# Vérifie que le token est valide et présent en base de données
 def require_auth(func):
-    """
-    Vérifie que le JWT envoyé dans le header Authorization est valide.
-    Décorateur réutilisable pour protéger n'importe quelle route.
-    """
+    """Vérifie que le token envoyé dans le header Authorization est valide et présent en base."""
     @wraps(func)
     def wrapper(*args, **kwargs):
         auth_header = request.headers.get("Authorization")
@@ -102,12 +109,24 @@ def require_auth(func):
 
         try:
             payload = jwt.decode(token, auth_app.config['SECRET_KEY'])
-            return func(payload, *args, **kwargs)
         except JoseError:
             return jsonify({"message": "Token invalide ou expiré"}), 401
 
-    return wrapper
+        # Vérification stateful : token présent en base et non expiré
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM access_tokens WHERE token = ?", (token,))
+        record = cursor.fetchone()
+        conn.close()
 
+        if not record:
+            return jsonify({"message": "Token révoqué ou inconnu"}), 401
+
+        if datetime.fromisoformat(record["expires_at"]) < datetime.now(timezone.utc):
+            return jsonify({"message": "Token expiré"}), 401
+
+        return func(payload, *args, **kwargs)
+    return wrapper
 
 # ================================
 #  ROUTES PUBLIQUES
@@ -128,7 +147,6 @@ def register():
     else:
         return jsonify({"message": "Erreur interne."}), 500
 
-
 @auth_app.route('/auth/login', methods=['POST'])
 def login():
     """Connexion utilisateur, génération access + refresh token"""
@@ -137,44 +155,51 @@ def login():
     password = data.get('password')
 
     user_record = get_user_by_username(username)
-    if user_record and check_password(user_record['password_hash'], password):
-        # Access token (30 min)
-        access_header = {"alg": "HS256"}
-        access_payload = {
-            "user": username,
-            "iat": int(datetime.now(timezone.utc).timestamp()),
-            "exp": int((datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp())
-        }
-        access_token = jwt.encode(access_header, access_payload, auth_app.config['SECRET_KEY']).decode()
+    if not user_record or not check_password(user_record['password_hash'], password):
+        return jsonify({"message": "Identifiants incorrects."}), 401
 
-        # Refresh token (7 jours)
-        refresh_header = {"alg": "HS256"}
-        refresh_payload = {
-            "user": username,
-            "type": "refresh",
-            "iat": int(datetime.now(timezone.utc).timestamp()),
-            "exp": int((datetime.now(timezone.utc) + timedelta(days=7)).timestamp())
-        }
-        refresh_token = jwt.encode(refresh_header, refresh_payload, auth_app.config['SECRET_KEY']).decode()
+    now = datetime.now(timezone.utc)
 
-        # Stockage en base
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO refresh_tokens (username, token, expires_at)
-            VALUES (?, ?, ?)
-        """, (username, refresh_token, str(datetime.now(timezone.utc) + timedelta(days=7))))
-        conn.commit()
-        conn.close()
+    # --- Access token stateful ---
+    access_payload = {
+        "user": username,
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(minutes=30)).timestamp())
+    }
+    access_header = {"alg": "HS256"}
+    access_token = jwt.encode(access_header, access_payload, auth_app.config['SECRET_KEY']).decode()
 
-        return jsonify({
-            "message": "Connexion réussie.",
-            "access_token": access_token,
-            "refresh_token": refresh_token
-        }), 200
+    # Stocker en base
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO access_tokens (username, token, expires_at)
+        VALUES (?, ?, ?)
+    """, (username, access_token, str(now + timedelta(minutes=30))))
+    conn.commit()
 
-    return jsonify({"message": "Identifiants incorrects."}), 401
+    # --- Refresh token ---
+    refresh_payload = {
+        "user": username,
+        "type": "refresh",
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(days=7)).timestamp())
+    }
+    refresh_header = {"alg": "HS256"}
+    refresh_token = jwt.encode(refresh_header, refresh_payload, auth_app.config['SECRET_KEY']).decode()
 
+    cursor.execute("""
+        INSERT INTO refresh_tokens (username, token, expires_at)
+        VALUES (?, ?, ?)
+    """, (username, refresh_token, str(now + timedelta(days=7))))
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "message": "Connexion réussie.",
+        "access_token": access_token,
+        "refresh_token": refresh_token
+    }), 200
 
 # ================================
 #  ROUTES PROTÉGÉES
@@ -182,22 +207,20 @@ def login():
 
 @auth_app.route('/auth/validate', methods=['POST'])
 @require_auth
+# Cette fonction vérifie le token via Auth Service
 def validate_token(payload):
     """Validation JWT (pour API Gateway)"""
-    return jsonify({
-        "message": "Token valide",
-        "user": payload["user"]
-    }), 200
+    return jsonify({"message": "Token valide", "user": payload["user"]}), 200
 
 @auth_app.route('/auth/refresh', methods=['POST'])
 def refresh_token():
-    """Rafraîchissement du token JWT"""
+    """Rafraîchissement du token access"""
     data = request.get_json() or {}
     refresh_token = data.get("refresh_token")
     if not refresh_token:
         return jsonify({"message": "Refresh token manquant"}), 400
 
-    # Décodage et validation du refresh token
+    # Décodage et vérification
     try:
         decoded = jwt.decode(refresh_token, auth_app.config['SECRET_KEY'])
     except JoseError:
@@ -208,55 +231,61 @@ def refresh_token():
 
     username = decoded["user"]
 
-    # Vérification en base que le refresh token existe pour cet utilisateur
+    # Vérification en base
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM refresh_tokens WHERE username = ? AND token = ?", (username, refresh_token))
+    cursor.execute("SELECT * FROM refresh_tokens WHERE username=? AND token=?", (username, refresh_token))
     record = cursor.fetchone()
     conn.close()
 
     if not record:
         return jsonify({"message": "Refresh token inconnu"}), 401
 
-    # Vérification d'expiration (optionnelle, prudente)
-    exp = decoded.get("exp")
-    if exp and int(datetime.now(timezone.utc).timestamp()) > int(exp):
-        # supprimer le token expiré de la base
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM refresh_tokens WHERE token = ?", (refresh_token,))
-        conn.commit()
-        conn.close()
-        return jsonify({"message": "Refresh token expiré"}), 401
+    now = datetime.now(timezone.utc)
 
-    # Génération d'un nouvel access token (30 minutes)
-    new_header = {"alg": "HS256"}
-    new_payload = {
+    # --- Nouveau access token ---
+    new_access_payload = {
         "user": username,
-        "iat": int(datetime.now(timezone.utc).timestamp()),
-        "exp": int((datetime.now(timezone.utc) + timedelta(minutes=30)).timestamp())
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(minutes=30)).timestamp())
     }
-    new_access_token = jwt.encode(new_header, new_payload, auth_app.config['SECRET_KEY']).decode()
+    new_access_token = jwt.encode({"alg": "HS256"}, new_access_payload, auth_app.config['SECRET_KEY']).decode()
+
+    # Stockage en base
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO access_tokens (username, token, expires_at)
+        VALUES (?, ?, ?)
+    """, (username, new_access_token, str(now + timedelta(minutes=30))))
+    conn.commit()
+    conn.close()
 
     return jsonify({"access_token": new_access_token}), 200
 
-
 @auth_app.route('/auth/logout', methods=['POST'])
 @require_auth
+# Vérifie que le token est valide et présent en base de données
 def logout(payload):
-    """Déconnexion utilisateur"""
+    """Déconnexion utilisateur (révocation access + refresh token)"""
     data = request.get_json()
     refresh_token = data.get("refresh_token")
+    auth_header = request.headers.get("Authorization")
+    access_token = auth_header.split(" ")[1] if auth_header else None
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM refresh_tokens WHERE token = ?", (refresh_token,))
+
+    if access_token:
+        cursor.execute("DELETE FROM access_tokens WHERE token=?", (access_token,))
+    if refresh_token:
+        cursor.execute("DELETE FROM refresh_tokens WHERE token=?", (refresh_token,))
+
     conn.commit()
     conn.close()
 
     return jsonify({"message": f"Utilisateur {payload['user']} déconnecté avec succès."}), 200
 
-
 # --- Lancement du service ---
 if __name__ == '__main__':
-    auth_app.run(debug=True, port=5002)
+    auth_app.run(debug=True, port=5002, host='0.0.0.0')
