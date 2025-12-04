@@ -93,10 +93,12 @@ def submit_order(user):
     articles = {
         'Fraises': 2.50,
         'Haricots': 1.80,
-        'Laine': 12.00,
+        'Laine': 4.00,
         'Peches': 3.00,
-        'Pasteques': 7.00,
-        'Pates': 1.20
+        'Pasteques': 4.00,
+        'Pates': 1.20,
+        "Jus d'ananas": 2.50,
+        'Miel': 5.00
     }
 
     items = []
